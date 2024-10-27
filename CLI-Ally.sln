@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CLIAlly", "CLIAlly\CLIAlly.csproj", "{9E46E959-A519-4B54-8A99-FB64997E7004}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CommandLineParserDemo", "CommandLineParserDemo\CommandLineParserDemo.csproj", "{08F5232B-9305-4E8B-81F1-4F7CAD80B4A0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetJsonAOT", "NetJsonAOT\NetJsonAOT.csproj", "{F3C2B91C-0C64-4CF6-B12A-DC6DD85DCC3E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{9E46E959-A519-4B54-8A99-FB64997E7004}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9E46E959-A519-4B54-8A99-FB64997E7004}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9E46E959-A519-4B54-8A99-FB64997E7004}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9E46E959-A519-4B54-8A99-FB64997E7004}.Release|Any CPU.Build.0 = Release|Any CPU
+		{08F5232B-9305-4E8B-81F1-4F7CAD80B4A0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{08F5232B-9305-4E8B-81F1-4F7CAD80B4A0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{08F5232B-9305-4E8B-81F1-4F7CAD80B4A0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{08F5232B-9305-4E8B-81F1-4F7CAD80B4A0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F3C2B91C-0C64-4CF6-B12A-DC6DD85DCC3E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F3C2B91C-0C64-4CF6-B12A-DC6DD85DCC3E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F3C2B91C-0C64-4CF6-B12A-DC6DD85DCC3E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F3C2B91C-0C64-4CF6-B12A-DC6DD85DCC3E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
