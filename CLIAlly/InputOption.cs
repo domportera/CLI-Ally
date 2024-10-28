@@ -12,11 +12,11 @@ public class InputOption : IBuildStrings
 
     // not null if IsComplete is true
     private object? _parsedValue;
-    
+
     private string? _argument;
 
     public string? Argument => _argument;
-    
+
     public bool IsComplete => _parsedValue is not null;
 
 
@@ -28,16 +28,16 @@ public class InputOption : IBuildStrings
     {
         _optionInfo = optionInfo;
         OptionInfo = optionInfo;
-        if(optionInfo.Type == typeof(bool))
+        if (optionInfo.Type == typeof(bool))
             _parsedValue = optionInfo.DefaultValue;
     }
-    
+
     public bool TryGetArgument([NotNullWhen(true)] out string? value)
     {
         value = _argument;
         return value is not null;
     }
-    
+
     public bool TryGetValue([NotNullWhen(true)] out object? value)
     {
         value = _parsedValue;
@@ -60,7 +60,7 @@ public class InputOption : IBuildStrings
                 return false;
             }
         }
-        
+
         if (!OptionInfo.Validator(value, _optionInfo.Type, out var parsedValue, out var error))
         {
             reason = error;
@@ -72,7 +72,7 @@ public class InputOption : IBuildStrings
         reason = null;
         return true;
     }
-    
+
     public override string ToString()
     {
         _sb ??= new StringBuilder();
@@ -89,14 +89,15 @@ public class InputOption : IBuildStrings
         foreach (var s in OptionInfo.ShortNames)
             sb.Append(", -").Append(s);
 
+
         if (_argument != null)
         {
             sb.Append(": ").AppendBetween('\'', '\'', _argument);
         }
-        
+
         return sb;
     }
-    
+
     private StringBuilder? _sb;
     private readonly OptionInfo _optionInfo;
 }

@@ -5,7 +5,8 @@ using System.Text;
 
 namespace CLIAlly;
 
-public delegate bool OptionValidator(string? value, Type type, out object? result, [NotNullWhen(false)] out string? error);
+public delegate bool OptionValidator(string? value, Type type, out object? result,
+    [NotNullWhen(false)] out string? error);
 
 /// <summary>
 /// Defines an option that can be specified on the command line
@@ -28,7 +29,8 @@ public record OptionInfo
     public readonly FieldInfo FieldInfo;
 
     public OptionInfo(string longName, char[] shortNames, string? description, OptionValidator validator,
-        bool required, RequiredAttribute? requiredAttribute, string? furtherInformation, Type type, bool isLongNameCaseSensitive, object? defaultValue, int order, FieldInfo fieldInfo)
+        bool required, RequiredAttribute? requiredAttribute, string? furtherInformation, Type type,
+        bool isLongNameCaseSensitive, object? defaultValue, int order, FieldInfo fieldInfo)
     {
         LongName = longName;
         ShortNames = shortNames;
@@ -42,7 +44,7 @@ public record OptionInfo
         DefaultValue = defaultValue;
         Order = order;
         FieldInfo = fieldInfo;
-        
+
         if (required && validator == null)
         {
             throw new ArgumentException("A required option must accept an argument", nameof(validator));
@@ -63,20 +65,14 @@ public record OptionInfo
         {
             sb.Append(", -").Append(s);
         }
-        
-        if(Description == null && FurtherInformation == null)
-        {
-            sb.AppendLine();
-            return;
-        }
-        
+
         sb.Append(": ");
 
         // variable space chars for alignment
         var targetCharCount = startLinePos + targetDescriptionIndentation - 1; // - 1 for the space after these dashes
         sb.AppendRepeating('-', targetCharCount - sb.Length);
         sb.Append(' ');
-        
+
         int windowWidth;
         try
         {
@@ -86,11 +82,40 @@ public record OptionInfo
         {
             windowWidth = int.MaxValue;
         }
-        
+
         // in case the name itself takes up > targetDescriptionIndentation characters, or the description gets super squished
-        windowWidth = windowWidth < sb.Length - startLinePos + 20 ?  int.MaxValue : windowWidth;
+        windowWidth = windowWidth < sb.Length - startLinePos + 20 ? int.MaxValue : windowWidth;
+        
+        // generate type information
+        var typeInformationSb = new StringBuilder();
+        typeInformationSb.Append("| ").Append(Type.Name).Append(' ');
 
+        if (Required)
+        {
+            typeInformationSb.AppendBetweenBrackets("Required");
+        }
+        else
+        {
+            var defaultValue = DefaultValue switch
+            {
+                null => "null",
+                string s => s,
+                _ => DefaultValue.ToString() ?? "null"
+            };
 
+            typeInformationSb.AppendBetweenBrackets("Default value: '" + defaultValue + '\'');
+        }
+        
+        typeInformationSb.Append(" | ");
+
+        // append type information
+        for(int i = 0; i < typeInformationSb.Length; i++)
+        {
+            Wrap(sb, ref startLinePos, windowWidth);
+            sb.Append(typeInformationSb[i]);
+        }
+
+        // append description information
         if (Description != null)
         {
             foreach (var c in Description)
@@ -112,10 +137,11 @@ public record OptionInfo
         sb.AppendLine();
 
         return;
+
         static void Wrap(StringBuilder sb, ref int startLinePos, int maxWidth)
         {
             if (sb.Length - startLinePos <= maxWidth) return;
-            
+
             sb.AppendLine();
             startLinePos = sb.Length;
             sb.AppendRepeating(' ', targetDescriptionIndentation);
