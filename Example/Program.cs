@@ -1,4 +1,4 @@
-﻿namespace CommandLineParserDemo;
+﻿namespace Example;
 using CLIAlly;
 using NetJsonAOT;
 
@@ -29,7 +29,7 @@ internal static class Program
         // if there are any failures, print them to the console
         if (exitCodeInfo.ExitCode != 0)
         {
-            PrintErrorToConsole($"Error: {exitCodeInfo.ErrorMessage}");
+            PrintErrorToConsole($"Error: {exitCodeInfo.Message}");
         }
         
         return exitCodeInfo.ExitCode;

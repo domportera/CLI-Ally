@@ -7,6 +7,7 @@ public class InputCommand(CommandInfo commandInfo) : IBuildStrings
     public readonly CommandInfo CommandInfo = commandInfo;
     public IReadOnlyList<InputOption> Options => OptionsInternal;
     public IReadOnlyList<string> Errors => _errors ?? [];
+    internal bool JsonRequested { get; set; }
 
     internal readonly List<InputOption> OptionsInternal = [];
     private List<string>? _errors;

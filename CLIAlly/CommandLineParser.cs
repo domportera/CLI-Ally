@@ -16,140 +16,77 @@ public sealed class CommandLineParser : ICliParser
 
     public IReadOnlyList<string> Errors => _errors;
     public IReadOnlyList<InputCommand> InputCommands { get; }
+    private IReadOnlyDictionary<InputCommand, object?> _jsonParsedArgs;
     public IReadOnlyList<InputCommand> CommandHelpRequested { get; }
     public bool AppHelpRequested { get; private set; }
+    public bool AppVersionRequested { get; private set; }
     public CommandConfiguration Commands { get; }
 
     public IReadOnlyList<string> Args { get; }
+    
 
     private readonly record struct RuntimeCommand(InputCommand Command, MethodInfo Method, object? Params);
 
-    public ExitCodeInfo TryInvokeCommands()
+    public readonly record struct ReservedOption(
+        ReservedOptionType Type,
+        string LongName,
+        string[] ShortNames,
+        AppliesTo AppliesTo);
+
+    public static IReadOnlyCollection<ReservedOption> ReservedArgs => _reservedArgs;
+
+    private static readonly ReservedOption[] _reservedArgs =
+    [
+        new(ReservedOptionType.Help, "--help", ["-h"], AppliesTo.Application | AppliesTo.Command),
+        new(ReservedOptionType.Version, "--version", ["-v"], AppliesTo.Application),
+        new(ReservedOptionType.Json, "--json", ["-j"], AppliesTo.Command),
+    ];
+
+    public enum ReservedOptionType
     {
-        string errors;
-        if (InputCommands.Count == 0)
-        {
-            errors = "No commands provided";
-            ExitCodeInfo.FromInvalidArgs(errors);
-        }
+        Help,
+        Version,
+        Json
+    }
 
-        if (Errors.Count > 0)
-        {
-            errors = string.Join('\n', Errors);
-            return ExitCodeInfo.FromInvalidArgs(errors);
-        }
+    [Flags]
+    public enum AppliesTo
+    {
+        Application,
+        Command
+    }
+    
+    public static CommandLineParser FromArgs(string[] args, Type type)
+    {
+        ArgumentNullException.ThrowIfNull(type);
 
-        List<RuntimeCommand> runtimeCommands = [];
-        foreach (var command in InputCommands)
-        {
-            // check if the command is fully complete and valid
-            if (!command.IsValid())
-            {
-                errors = string.Join('\n', command.Errors);
-                return ExitCodeInfo.FromInvalidArgs(errors);
-            }
-
-            var dynamicMethodInfo = command.CommandInfo.MethodInfo;
-            var method = dynamicMethodInfo.Method;
-
-            var paramsType = dynamicMethodInfo.Parameters;
-
-            if (paramsType == null)
-            {
-                if (command.Options.Count > 0)
-                {
-                    errors = "Command does not accept any options but we received some?";
-                    return ExitCodeInfo.FromInvalidArgs(errors);
-                }
-
-                runtimeCommands.Add(new RuntimeCommand(command, method, null));
-                continue;
-            }
-
-            object? argsInstance;
-            try
-            {
-                argsInstance = Activator.CreateInstance(paramsType);
-                if (argsInstance == null)
-                {
-                    errors = $"Error creating instance of type '{paramsType.Name}': result was null.";
-                    return ExitCodeInfo.FromFailure(errors);
-                }
-            }
-            catch (Exception e)
-            {
-                errors = $"Error creating instance of type '{paramsType.Name}': {e.Message}";
-                return ExitCodeInfo.FromFailure(errors);
-            }
-
-            foreach (var inputOption in command.Options)
-            {
-                var optionInfo = inputOption.OptionInfo;
-                var fieldInfo = optionInfo.FieldInfo;
-
-                if (!inputOption.TryGetValue(out var value))
-                {
-                    errors = $"Error getting value for option '{optionInfo.LongName}': {value}";
-                    return ExitCodeInfo.FromFailure(errors);
-                }
-
-                try
-                {
-                    fieldInfo.SetValue(argsInstance, value);
-                }
-                catch (Exception e)
-                {
-                    return ExitCodeInfo.FromException($"Error setting value for option '{optionInfo.LongName}'", e);
-                }
-            }
-
-            runtimeCommands.Add(new RuntimeCommand(command, method, argsInstance));
-        }
-
-        // actually execute commands
-        foreach (var runtimeCommand in runtimeCommands)
-        {
-            var method = runtimeCommand.Method;
-            var args = runtimeCommand.Params;
-            try
-            {
-                var result = method.Invoke(null, args == null ? null : [args]);
-                if (result is ExitCodeInfo exitCode)
-                {
-                    if (!exitCode)
-                    {
-                        return exitCode;
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                errors = $"Error invoking command {runtimeCommand.Command.CommandInfo.Name} " +
-                         $"via method '{method.Name}'";
-                return ExitCodeInfo.FromException(errors, e);
-            }
-        }
-
-        return ExitCodeInfo.Success;
+        var commands = ArgsReflector.GetCommandInfo(type);
+        var config = new CommandConfiguration(commands);
+        return new CommandLineParser(args, config);
     }
 
     public static CommandLineParser FromArgs(string[] args, params Type[] typesContainingCommands)
     {
-        if(typesContainingCommands is null || typesContainingCommands.Length == 0)
+        if (typesContainingCommands is null || typesContainingCommands.Length == 0)
             throw new ArgumentException("At least one type must be provided", nameof(typesContainingCommands));
         
+        // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+        if(typesContainingCommands.Any(type => type is null))
+            throw new ArgumentException("Provided types cannot be null", nameof(typesContainingCommands));
+            
+
         List<CommandInfo> allCommands = [];
-        foreach(var type in typesContainingCommands)
+        foreach (var type in typesContainingCommands)
         {
             var commands = ArgsReflector.GetCommandInfo(type);
             allCommands.AddRange(commands);
         }
-        
+
         var config = new CommandConfiguration(allCommands);
         return new CommandLineParser(args, config);
     }
 
-    public CommandLineParser(string[] args, CommandConfiguration commands)
+    private CommandLineParser(string[] args, CommandConfiguration commands)
     {
         // populate our fields
         var quantityArgs = args.Length;
@@ -160,10 +97,12 @@ public sealed class CommandLineParser : ICliParser
 
         List<InputCommand> inputCommands = [];
         List<InputCommand> commandHelpRequested = [];
+        Dictionary<InputCommand, object?> jsonCommands = [];
 
         InputCommands = inputCommands;
         CommandHelpRequested = commandHelpRequested;
         Commands = commands;
+        _jsonParsedArgs = jsonCommands;
 
         InputCommand? currentCommand = null;
         InputOption? currentOption = null;
@@ -172,20 +111,42 @@ public sealed class CommandLineParser : ICliParser
         bool canUseDefaultCommand = true;
 
         // parsing time
-        const string longHelp = "--help";
-        const string shortHelp = "-h";
 
-        List<OptionInfo> availableOptions = new();
+        List<OptionInfo> availableOptions = [];
 
         for (int i = 0; i < quantityArgs; i++)
         {
             var arg = args[i];
 
+            // handle json arguments
+            if (currentCommand is { JsonRequested: true })
+            {
+                var type = currentCommand.CommandInfo.MethodInfo.Parameters;
+                if (type == null)
+                {
+                    HandleCommandError(arg, "Command does not accept any parameters");
+                    return;
+                }
+                
+                if (ArgsReflector.TryParseJson(arg, type, out var parsed, out var failureReason))
+                {
+                    jsonCommands.Add(currentCommand, parsed);
+                    currentCommand = null;
+                    currentOption = null;
+                }
+                else
+                {
+                    HandleCommandError(arg, $"Error parsing JSON: {failureReason}");
+                    return;
+                }
+                continue;
+            }
+
             // is this a long option?
             if (arg.StartsWith("--"))
             {
                 // long option
-                if (currentCommand == null && !TryHandleArgumentWithoutCommand(arg, longHelp))
+                if (currentCommand == null && !TryHandleArgumentWithoutCommand(arg, true))
                     return;
 
                 Debug.Assert(currentCommand != null);
@@ -193,17 +154,15 @@ public sealed class CommandLineParser : ICliParser
                 // long args must be at least 4 chars including the '--'
                 if (arg.Length > 3 && TryGetLongOption(arg, availableOptions, out var opt))
                 {
-                    // this is a subcommand option
-                    AddOption(opt, currentCommand.OptionsInternal);
+                    // this is a command option
                     AddOption(opt, currentCommand.OptionsInternal);
                 }
-                else if (arg == longHelp)
+                else if (TryHandleReservedOptions(arg, currentCommand, true))
                 {
-                    commandHelpRequested.Add(currentCommand);
                 }
                 else if (!TryAddArgument(arg)) // string argument e.g. "--!foo!!--bA~~r--"
                 {
-                    HandleCommandError(arg);
+                    HandleCommandError(arg, "Unrecognized argument");
                     return;
                 }
             }
@@ -212,28 +171,28 @@ public sealed class CommandLineParser : ICliParser
             else if (arg.StartsWith('-'))
             {
                 // short option
-                if (currentCommand == null && !TryHandleArgumentWithoutCommand(arg, shortHelp))
+                if (currentCommand == null && !TryHandleArgumentWithoutCommand(arg, false))
                     return;
 
                 Debug.Assert(currentCommand != null);
 
                 // if it's just a single dash, it's not a short option
+                // but we allow lengths > 2 to be a series of short options (e.g. git clean -fxd)
                 string? shortOptionError = null;
                 if (arg.Length > 1 && TryGetShortOptions(arg, availableOptions, out var opts, out shortOptionError))
                 {
                     AddShortOptions(opts, currentCommand.OptionsInternal);
                 }
-                else if (arg == shortHelp)
+                else if (TryHandleReservedOptions(arg, currentCommand, false))
                 {
-                    commandHelpRequested.Add(currentCommand);
                 }
                 else if (!TryAddArgument(arg)) // string argument e.g. "-foo-bar!!!"
                 {
-                    HandleCommandError(arg, shortOptionError);
+                    HandleCommandError(arg, shortOptionError ?? "Unrecognized argument");
                     return;
                 }
             }
-            else // it's a subcommand or option argument
+            else // it's a command or option argument
             {
                 if (commands.TryGetCommand(arg, out var matchingCommand))
                 {
@@ -252,13 +211,14 @@ public sealed class CommandLineParser : ICliParser
         // The non-static methods have a good reason to be here.
         // The static ones have an o-k reason to be here - they just weren't and shouldn't be used elsewhere.
         // Just pretend this constructor is a class with a bunch of private methods.
-        void HandleCommandError(string arg, string? additionalError = null)
+        void HandleCommandError(string arg, string errorMessage)
         {
-            if (additionalError != null)
-                _errors.Add(additionalError);
-            var error = $"Unknown option '{arg}' provided";
+            var error = $"Error with argument '{arg}': " + errorMessage;
             currentCommand.AddError(error);
-            _errors.Add(error + $"to command '{currentCommand.CommandInfo.Name}'");
+            
+            
+            var fullError = $"Command '{currentCommand.CommandInfo.Name}' --- {error}";
+            _errors.Add(fullError);
 
             currentCommand = null;
             currentOption = null;
@@ -266,19 +226,16 @@ public sealed class CommandLineParser : ICliParser
 
         void AddCommand(CommandInfo cmd)
         {
-            var newSubcommand = new InputCommand(cmd);
-            inputCommands.Add(newSubcommand);
-            currentCommand = newSubcommand;
+            var newCommand = new InputCommand(cmd);
+            inputCommands.Add(newCommand);
+            currentCommand = newCommand;
             currentOption = null; // new subcommand, so we don't have an option yet
             canBeOrderedArguments = true;
             orderedArgumentIndex = 0;
             availableOptions.Clear();
             availableOptions.AddRange(cmd.Options);
-            if (canUseDefaultCommand && cmd.IsDefaultCommand)
-            {
-                canUseDefaultCommand = false;
-            }
-            // todo - do we just want to make this false as soon as we find any command?
+
+            canUseDefaultCommand = false;
         }
 
         void AddShortOptions(IReadOnlyList<OptionInfo> opts, IList<InputOption> optionsList)
@@ -292,6 +249,7 @@ public sealed class CommandLineParser : ICliParser
             }
 
             // only the last option in a short option list (e.g. -fxd, -fx, -f) can accept an argument
+            // this is achieved automatically because the last option applied to AddOption will be the new currentOption
         }
 
         void AddOption(OptionInfo optionInfo, IList<InputOption> optionsList)
@@ -314,11 +272,13 @@ public sealed class CommandLineParser : ICliParser
         }
 
 
-        bool TryHandleArgumentWithoutCommand(string arg, string helpCommand)
+        bool TryHandleArgumentWithoutCommand(string arg, bool isLongOption)
         {
-            if (arg == helpCommand)
+            if (TryHandleReservedOptions(arg, null, isLongOption))
             {
-                AppHelpRequested = true;
+                // we dont have a command, and a reserved option was specified
+                // therefore we shouldn't continue so we return false
+                // the caller will handle the reserved option by printing version, etc
                 return false;
             }
 
@@ -409,14 +369,14 @@ public sealed class CommandLineParser : ICliParser
                 for (var index = availableOptions.Count - 1; index >= 0; index--)
                 {
                     var option = availableOptions[index];
-                        
+
                     if (option.ShortNames.Length == 0)
                         continue;
 
-                    foreach(var shortName in option.ShortNames)
+                    foreach (var shortName in option.ShortNames)
                     {
                         if (shortName != c) continue;
-                        
+
                         // found it
                         foundOptions ??= new List<OptionInfo>();
                         foundOptions.Add(option);
@@ -440,7 +400,7 @@ public sealed class CommandLineParser : ICliParser
 
         bool TryAddArgument(string arg)
         {
-            if (currentCommand == null && !TryHandleArgumentWithoutCommand(arg, shortHelp))
+            if (currentCommand == null)
                 return false;
 
             if (currentOption == null && canBeOrderedArguments)
@@ -476,5 +436,244 @@ public sealed class CommandLineParser : ICliParser
             _errors.Add($"Unknown command or argument '{arg}'");
             return false;
         }
+
+        bool TryHandleReservedOptions(string s, InputCommand? cmd, bool isLongOption)
+        {
+            var reservedArgs = cmd == null
+                ? _reservedArgs.Where(arg => !arg.AppliesTo.HasFlag(AppliesTo.Application))
+                : _reservedArgs.Where(arg => !arg.AppliesTo.HasFlag(AppliesTo.Command));
+
+            ReservedOption? triggeredArg = null;
+            foreach (var reservedArg in reservedArgs)
+            {
+                if (isLongOption)
+                {
+                    if (s == reservedArg.LongName)
+                    {
+                        triggeredArg = reservedArg;
+                        break;
+                    }
+                }
+                else
+                {
+                    foreach (var shortName in reservedArg.ShortNames)
+                    {
+                        if (s == shortName)
+                        {
+                            triggeredArg = reservedArg;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (triggeredArg == null)
+            {
+                return false;
+            }
+
+            switch (triggeredArg.Value.Type)
+            {
+                case ReservedOptionType.Help:
+                {
+                    if (cmd == null)
+                        AppHelpRequested = true;
+                    else
+                        commandHelpRequested.Add(cmd);
+
+                    return true;
+                }
+                case ReservedOptionType.Version:
+                {
+                    if (cmd != null)
+                    {
+                        throw new Exception(
+                            "This is a bug - version should only be requested at the application level");
+                    }
+
+                    if (inputCommands.Count > 0)
+                    {
+                        //"Version cannot be requested with other commands present";
+                        return false;
+                    }
+
+                    AppVersionRequested = true;
+                    return true;
+                }
+                case ReservedOptionType.Json:
+                {
+                    if (cmd == null)
+                    {
+                        throw new Exception("This is a bug - json should only be requested at the command level");
+                    }
+
+                    // Json-based command arguments cannot be used with other options so we ignore it
+                    if (cmd.Options.Count != 0)
+                    {
+                        return false;
+                    }
+
+                    // if the command doesnt accept any options, it certainly doesn't accept json
+                    if (cmd.CommandInfo.AcceptsOption)
+                    {
+                        cmd.JsonRequested = true;
+                        return true;
+                    }
+                    
+                    return false;
+                }
+            }
+
+            return false;
+        }
+    }
+
+    public ExitCodeInfo TryInvokeCommands(bool writeOutputToConsole = true)
+    {
+        if (InputCommands.Count == 0)
+        {
+            ExitCodeInfo.FromInvalidArgs("No commands provided");
+        }
+
+        if (Errors.Count > 0)
+        {
+            var errors = string.Join('\n', Errors);
+            return ExitCodeInfo.FromInvalidArgs(errors);
+        }
+
+        List<RuntimeCommand> runtimeCommands = [];
+        foreach (var command in InputCommands)
+        {
+            if (_jsonParsedArgs.TryGetValue(command, out var jsonResult))
+            {
+                if (jsonResult is null)
+                {
+                    return ExitCodeInfo.FromInvalidArgs();
+                }
+                
+                // todo - check that the json result has all [Required] fields filled
+                runtimeCommands.Add(new RuntimeCommand(command, command.CommandInfo.MethodInfo.Method, jsonResult));
+                continue;
+            }
+            
+            // check if the command is fully complete and valid
+            if (!command.IsValid())
+            {
+                var errors = string.Join('\n', command.Errors);
+                return ExitCodeInfo.FromInvalidArgs(errors);
+            }
+
+            var dynamicMethodInfo = command.CommandInfo.MethodInfo;
+            var method = dynamicMethodInfo.Method;
+
+            var paramsType = dynamicMethodInfo.Parameters;
+
+            if (paramsType == null)
+            {
+                if (command.Options.Count > 0)
+                {
+                    return ExitCodeInfo.FromInvalidArgs( "Command does not accept any options but we received some?");
+                }
+
+                runtimeCommands.Add(new RuntimeCommand(command, method, null));
+                continue;
+            }
+
+            object? argsInstance;
+            try
+            {
+                argsInstance = Activator.CreateInstance(paramsType);
+                if (argsInstance == null)
+                {
+                    return ExitCodeInfo.FromFailure( $"Error creating instance of type '{paramsType.Name}': result was null.");
+                }
+            }
+            catch (Exception e)
+            {
+                var errors = $"Error creating instance of type '{paramsType.Name}': {e.Message}";
+                return ExitCodeInfo.FromFailure(errors);
+            }
+
+            foreach (var inputOption in command.Options)
+            {
+                var optionInfo = inputOption.OptionInfo;
+                var fieldInfo = optionInfo.FieldInfo;
+
+                if (!inputOption.TryGetValue(out var value))
+                {
+                    var errors = $"Error getting value for option '{optionInfo.LongName}': {value}";
+                    return ExitCodeInfo.FromFailure(errors);
+                }
+
+                try
+                {
+                    fieldInfo.SetValue(argsInstance, value);
+                }
+                catch (Exception e)
+                {
+                    return ExitCodeInfo.FromException($"Error setting value for option '{optionInfo.LongName}'", e);
+                }
+            }
+
+            runtimeCommands.Add(new RuntimeCommand(command, method, argsInstance));
+        }
+
+        StringBuilder output = new();
+        // actually execute commands
+        foreach (var runtimeCommand in runtimeCommands)
+        {
+            var method = runtimeCommand.Method;
+            var args = runtimeCommand.Params;
+            try
+            {
+                var result = method.Invoke(null, args == null ? null : [args]);
+                switch (result)
+                {
+                    case ExitCodeInfo exitCode:
+                    {
+                        if (writeOutputToConsole && !string.IsNullOrEmpty(exitCode.Message))
+                        {
+                            Printer.WriteLine(exitCode.Message);
+                        }
+                        
+                        if (!exitCode.IsSuccess)
+                        {
+                            return exitCode;
+                        }
+
+                        break;
+                    }
+                    case string str:
+                    {
+                        if (writeOutputToConsole)
+                        {
+                            Printer.WriteLine(str);
+                        }
+
+                        output.Append(str);
+                        break;
+                    }
+                    case not null:
+                    {
+                        var str = result.ToString();
+                        if (writeOutputToConsole)
+                        {
+                            Printer.WriteLine(str);
+                        }
+
+                        output.Append(str);
+                        break;
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                var error = $"Error invoking command {runtimeCommand.Command.CommandInfo.Name} " +
+                         $"via method '{method.Name}'";
+                return ExitCodeInfo.FromException(error, e);
+            }
+        }
+
+        return ExitCodeInfo.FromSuccess(output.ToString());
     }
 }

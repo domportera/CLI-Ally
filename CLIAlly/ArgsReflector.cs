@@ -373,7 +373,7 @@ public class ArgsReflector
         "false",
     };
 
-    private static bool TryParseJson(string? s, Type type, [NotNullWhen(true)] out object? value, [NotNullWhen(false)] out string? reason)
+    internal static bool TryParseJson(string? s, Type type, [NotNullWhen(true)] out object? value, [NotNullWhen(false)] out string? reason)
     {
         if (string.IsNullOrWhiteSpace(s))
         {

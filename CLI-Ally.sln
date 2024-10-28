@@ -2,7 +2,7 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CLIAlly", "CLIAlly\CLIAlly.csproj", "{9E46E959-A519-4B54-8A99-FB64997E7004}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CommandLineParserDemo", "CommandLineParserDemo\CommandLineParserDemo.csproj", "{08F5232B-9305-4E8B-81F1-4F7CAD80B4A0}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Example", "Example\Example.csproj", "{08F5232B-9305-4E8B-81F1-4F7CAD80B4A0}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetJsonAOT", "NetJsonAOT\NetJsonAOT.csproj", "{F3C2B91C-0C64-4CF6-B12A-DC6DD85DCC3E}"
 EndProject
