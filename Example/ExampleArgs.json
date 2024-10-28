@@ -1,0 +1,10 @@
+﻿{
+  "ModeOfDeath": "natural causes",
+  "Quantity": 1,
+  "Doom": false,
+  "DeathTextPath": "details.txt",
+  "PersonWhoDies": {
+    "Name": "Doug Hisgrave",
+    "Age": 99
+  }
+}

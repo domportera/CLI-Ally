@@ -8,11 +8,21 @@
         <PublishAot>true</PublishAot>
         <InvariantGlobalization>true</InvariantGlobalization>
         <RootNamespace>Example</RootNamespace>
+        <Version>1.0.0</Version>
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\CLIAlly\CLIAlly.csproj" />
+        <ProjectReference Include="..\CLIAlly\CLIAlly.csproj"/>
+       
+        <!-- Use the json source generator to enable AOT json support-->
         <ProjectReference Include="..\NetJsonAOT\NetJsonAOT.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
+    </ItemGroup>
+
+    <!-- include content files in the build output -->
+    <ItemGroup>
+        <Content Include="*.json;*.txt">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
     </ItemGroup>
 
 </Project>

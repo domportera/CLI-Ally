@@ -23,7 +23,7 @@ public sealed class CommandLineParser : ICliParser
     public CommandConfiguration Commands { get; }
 
     public IReadOnlyList<string> Args { get; }
-    
+
 
     private readonly record struct RuntimeCommand(InputCommand Command, MethodInfo Method, object? Params);
 
@@ -52,10 +52,10 @@ public sealed class CommandLineParser : ICliParser
     [Flags]
     public enum AppliesTo
     {
-        Application,
-        Command
+        Application = 1,
+        Command = 2
     }
-    
+
     public static CommandLineParser FromArgs(string[] args, Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
@@ -69,11 +69,11 @@ public sealed class CommandLineParser : ICliParser
     {
         if (typesContainingCommands is null || typesContainingCommands.Length == 0)
             throw new ArgumentException("At least one type must be provided", nameof(typesContainingCommands));
-        
+
         // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
-        if(typesContainingCommands.Any(type => type is null))
+        if (typesContainingCommands.Any(type => type is null))
             throw new ArgumentException("Provided types cannot be null", nameof(typesContainingCommands));
-            
+
 
         List<CommandInfo> allCommands = [];
         foreach (var type in typesContainingCommands)
@@ -121,34 +121,44 @@ public sealed class CommandLineParser : ICliParser
             // handle json arguments
             if (currentCommand is { JsonRequested: true })
             {
-                var type = currentCommand.CommandInfo.MethodInfo.Parameters;
-                if (type == null)
-                {
-                    HandleCommandError(arg, "Command does not accept any parameters");
+                if (!TryHandleJson(arg))
                     return;
-                }
-                
-                if (ArgsReflector.TryParseJson(arg, type, out var parsed, out var failureReason))
-                {
-                    jsonCommands.Add(currentCommand, parsed);
-                    currentCommand = null;
-                    currentOption = null;
-                }
-                else
-                {
-                    HandleCommandError(arg, $"Error parsing JSON: {failureReason}");
-                    return;
-                }
+
                 continue;
             }
 
-            // is this a long option?
-            if (arg.StartsWith("--"))
-            {
-                // long option
-                if (currentCommand == null && !TryHandleArgumentWithoutCommand(arg, true))
-                    return;
+            var couldBeLongOption = arg.StartsWith("--");
+            var couldBeShortOption = !couldBeLongOption && arg.StartsWith('-');
 
+            if ((couldBeLongOption || couldBeShortOption) && currentCommand == null)
+            {
+                if (TryHandleReservedOptions(arg, null, couldBeLongOption))
+                {
+                    // application-level reserved option was triggered - we're done
+                    return;
+                }
+
+                if (!canUseDefaultCommand || commands.DefaultCommand == null)
+                {
+                    // we don't have a command and can't assume one
+                    _errors.Add($"Unknown argument '{arg}'");
+                    return;
+                }
+
+                AddCommand(commands.DefaultCommand);
+
+                // check for reserved options now that we have a command,
+                // that way any reserved options won't be mistaken for a string argument
+                if (TryHandleReservedOptions(arg, currentCommand, couldBeLongOption))
+                {
+                    // logic is correct but this isn't matching like it should 
+                    continue;
+                }
+            }
+
+            // is this a long option?
+            if (couldBeLongOption)
+            {
                 Debug.Assert(currentCommand != null);
 
                 // long args must be at least 4 chars including the '--'
@@ -157,10 +167,8 @@ public sealed class CommandLineParser : ICliParser
                     // this is a command option
                     AddOption(opt, currentCommand.OptionsInternal);
                 }
-                else if (TryHandleReservedOptions(arg, currentCommand, true))
-                {
-                }
-                else if (!TryAddArgument(arg)) // string argument e.g. "--!foo!!--bA~~r--"
+                else if (!TryHandleReservedOptions(arg, currentCommand, true) &&
+                         !TryAddArgument(arg)) // string argument e.g. "--!foo!!--bA~~r--"
                 {
                     HandleCommandError(arg, "Unrecognized argument");
                     return;
@@ -168,12 +176,8 @@ public sealed class CommandLineParser : ICliParser
             }
 
             // is this a short option?
-            else if (arg.StartsWith('-'))
+            else if (couldBeShortOption)
             {
-                // short option
-                if (currentCommand == null && !TryHandleArgumentWithoutCommand(arg, false))
-                    return;
-
                 Debug.Assert(currentCommand != null);
 
                 // if it's just a single dash, it's not a short option
@@ -183,10 +187,8 @@ public sealed class CommandLineParser : ICliParser
                 {
                     AddShortOptions(opts, currentCommand.OptionsInternal);
                 }
-                else if (TryHandleReservedOptions(arg, currentCommand, false))
-                {
-                }
-                else if (!TryAddArgument(arg)) // string argument e.g. "-foo-bar!!!"
+                else if (!TryHandleReservedOptions(arg, currentCommand, false) &&
+                         !TryAddArgument(arg)) // string argument e.g. "-foo-bar!!!"
                 {
                     HandleCommandError(arg, shortOptionError ?? "Unrecognized argument");
                     return;
@@ -215,8 +217,8 @@ public sealed class CommandLineParser : ICliParser
         {
             var error = $"Error with argument '{arg}': " + errorMessage;
             currentCommand.AddError(error);
-            
-            
+
+
             var fullError = $"Command '{currentCommand.CommandInfo.Name}' --- {error}";
             _errors.Add(fullError);
 
@@ -269,28 +271,6 @@ public sealed class CommandLineParser : ICliParser
             {
                 canBeOrderedArguments = false;
             }
-        }
-
-
-        bool TryHandleArgumentWithoutCommand(string arg, bool isLongOption)
-        {
-            if (TryHandleReservedOptions(arg, null, isLongOption))
-            {
-                // we dont have a command, and a reserved option was specified
-                // therefore we shouldn't continue so we return false
-                // the caller will handle the reserved option by printing version, etc
-                return false;
-            }
-
-            if (!canUseDefaultCommand || commands.DefaultCommand == null)
-            {
-                _errors.Add($"Unknown argument '{arg}'");
-                return false;
-            }
-
-            AddCommand(commands.DefaultCommand);
-
-            return true;
         }
 
         static bool TryGetLongOption(string s, IList<OptionInfo> availableOptions,
@@ -440,8 +420,8 @@ public sealed class CommandLineParser : ICliParser
         bool TryHandleReservedOptions(string s, InputCommand? cmd, bool isLongOption)
         {
             var reservedArgs = cmd == null
-                ? _reservedArgs.Where(arg => !arg.AppliesTo.HasFlag(AppliesTo.Application))
-                : _reservedArgs.Where(arg => !arg.AppliesTo.HasFlag(AppliesTo.Command));
+                ? _reservedArgs.Where(arg => arg.AppliesTo.HasFlag(AppliesTo.Application))
+                : _reservedArgs.Where(arg => arg.AppliesTo.HasFlag(AppliesTo.Command));
 
             ReservedOption? triggeredArg = null;
             foreach (var reservedArg in reservedArgs)
@@ -519,12 +499,36 @@ public sealed class CommandLineParser : ICliParser
                         cmd.JsonRequested = true;
                         return true;
                     }
-                    
+
                     return false;
                 }
             }
 
             return false;
+        }
+
+        bool TryHandleJson(string arg)
+        {
+            var type = currentCommand.CommandInfo.MethodInfo.Parameters;
+            if (type == null)
+            {
+                HandleCommandError(arg, "Command does not accept any parameters");
+                return false;
+            }
+
+            if (ArgsReflector.TryParseJson(arg, type, out var parsed, out var failureReason))
+            {
+                jsonCommands.Add(currentCommand, parsed);
+                currentCommand = null;
+                currentOption = null;
+            }
+            else
+            {
+                HandleCommandError(arg, $"Error parsing JSON: {failureReason}");
+                return false;
+            }
+
+            return true;
         }
     }
 
@@ -550,12 +554,12 @@ public sealed class CommandLineParser : ICliParser
                 {
                     return ExitCodeInfo.FromInvalidArgs();
                 }
-                
+
                 // todo - check that the json result has all [Required] fields filled
                 runtimeCommands.Add(new RuntimeCommand(command, command.CommandInfo.MethodInfo.Method, jsonResult));
                 continue;
             }
-            
+
             // check if the command is fully complete and valid
             if (!command.IsValid())
             {
@@ -572,7 +576,7 @@ public sealed class CommandLineParser : ICliParser
             {
                 if (command.Options.Count > 0)
                 {
-                    return ExitCodeInfo.FromInvalidArgs( "Command does not accept any options but we received some?");
+                    return ExitCodeInfo.FromInvalidArgs("Command does not accept any options but we received some?");
                 }
 
                 runtimeCommands.Add(new RuntimeCommand(command, method, null));
@@ -585,7 +589,8 @@ public sealed class CommandLineParser : ICliParser
                 argsInstance = Activator.CreateInstance(paramsType);
                 if (argsInstance == null)
                 {
-                    return ExitCodeInfo.FromFailure( $"Error creating instance of type '{paramsType.Name}': result was null.");
+                    return ExitCodeInfo.FromFailure(
+                        $"Error creating instance of type '{paramsType.Name}': result was null.");
                 }
             }
             catch (Exception e)
@@ -635,7 +640,7 @@ public sealed class CommandLineParser : ICliParser
                         {
                             Printer.WriteLine(exitCode.Message);
                         }
-                        
+
                         if (!exitCode.IsSuccess)
                         {
                             return exitCode;
@@ -669,7 +674,7 @@ public sealed class CommandLineParser : ICliParser
             catch (Exception e)
             {
                 var error = $"Error invoking command {runtimeCommand.Command.CommandInfo.Name} " +
-                         $"via method '{method.Name}'";
+                            $"via method '{method.Name}'";
                 return ExitCodeInfo.FromException(error, e);
             }
         }

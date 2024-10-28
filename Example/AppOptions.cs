@@ -35,7 +35,7 @@ internal static class MyClassWithCommands
 
         var output =
             $"{person.Name} has died of {args.ModeOfDeath} at the age of {person.Age}. {additionalDeathText}\n" +
-            $"They have unfortunately done so {args.Quantity} times. " +
+            $"They have unfortunately died {args.Quantity} {(args.Quantity == 1 ? "time" : "times")}. " +
             $"They are {
                 (args.Doom
                     ? "doomed to die again."
@@ -46,8 +46,7 @@ internal static class MyClassWithCommands
     }
 }
 
-[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes
-    .PublicFields)] // gets rid of IDE warnings about unused/uninitialized fields
+[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicFields)] // gets rid of IDE warnings about unused/uninitialized fields
 [Serializable] // allows the entire arguments object to be input as json (via file or inline) instead of by individual arguments
 internal class CommandArgs
 {
@@ -65,17 +64,13 @@ internal class CommandArgs
     public string? DeathTextPath;
 
     [Arg(4), JsonPath]
-    [Description(
-        "Path to a JSON file identifying your victim. Includes only \"Name\" (strings) and \"Age\" (integer) fields.")]
+    [Description("Path to a JSON file identifying your victim. Includes only \"Name\" (strings) and \"Age\" (integer) fields.")]
     public PersonWhoDies? PersonWhoDies;
 }
 
 [Serializable]
 internal class PersonWhoDies
 {
-    [JsonInclude]
-    public string Name = "John Doe";
-    
-    [JsonInclude]
+    public string Name = "An unnamed stranger";
     public int Age = 42;
 }
