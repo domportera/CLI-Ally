@@ -26,6 +26,11 @@ public interface ICliParser
     /// True if the user requested help for the application as a whole
     /// </summary>
     public bool AppHelpRequested { get; }
+    
+    /// <summary>
+    /// True if the user requested the version of the application
+    /// </summary>
+    public bool AppVersionRequested { get; }
 
     /// <summary>
     /// The configuration used to parse the command line arguments

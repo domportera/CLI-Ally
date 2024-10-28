@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Reflection;
+using System.Text;
 
 namespace CLIAlly;
 
@@ -11,6 +12,13 @@ public static class Help
     public static bool PrintHelpIfRequested(this ICliParser parser, string? header = null, string? footer = null,
         StringBuilder? sb = null, StringBuilderMode sbMode = StringBuilderMode.ReturnCleared)
     {
+        if (parser.AppVersionRequested)
+        {
+            var version = Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "Unknown";
+            Console.WriteLine(version);
+            return true;
+        }
+        
         footer ??= "Hope this helps!";
 
         var helpWasRequested = false;
