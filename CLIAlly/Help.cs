@@ -26,22 +26,38 @@ public static class Help
 
         if (sbMode == StringBuilderMode.ReturnCleared)
             sb.Clear();
+        
+        var hasMultipleCommands = parser.Commands.CommandInfos.Count > 1;
 
         if (parser.AppHelpRequested)
         {
             helpWasRequested = true;
 
-            header ??= "The following are the available options and commands for this application.\n" +
-                       "For more information on a specific command, use a '--help' or '-h' argument with the command name. (ex: 'git push --help')";
+            if (header == null)
+            {
+                if (hasMultipleCommands)
+                {
+                    header = "The following are the available options and commands for this application.\n" +
+                             "For more information on a specific command, use a '--help' or '-h' argument with the command name. (ex: 'git push --help')";
+                }
+                else
+                {
+                    header = "The following are the available options for this application.";
+                }
+            }
+
             sb.AppendLine(header).AppendLine();
-            parser.Commands.GetFullHelpText(sb, 0);
+            parser.Commands.GetFullHelpText(sb, 0, true);
         }
         else
         {
+            var count = parser.CommandHelpRequested.Count;
+            var hasMultipleHelpRequests = count > 1;
+            
             foreach (var command in parser.CommandHelpRequested)
             {
                 helpWasRequested = true;
-                command.CommandInfo.AppendHelpText(sb, true, 0, true);
+                command.CommandInfo.AppendHelpText(sb, true, 0, true, hasMultipleHelpRequests);
             }
         }
 

@@ -43,17 +43,21 @@ public record CommandConfiguration
         return false;
     }
 
-    public void GetFullHelpText(StringBuilder sb, int indent)
+    public void GetFullHelpText(StringBuilder sb, int indent, bool prettyPrint)
     {
         // print out a standard help text
         if (CommandInfos.Count > 0)
         {
-            sb.Append("~~~~~~~~~ ").Append("Commands").AppendLine(" ~~~~~~~~~~");
+            var hasMultipleCommands = CommandInfos.Count > 1;
+            if (hasMultipleCommands && prettyPrint)
+            {
+                sb.Append("~~~~~~~~~ ").Append("Commands").AppendLine(" ~~~~~~~~~~");
+            }
 
             var indentSpaces = indent * 4;
             foreach (var command in CommandInfos)
             {
-                command.AppendHelpText(sb, false, indentSpaces, true);
+                command.AppendHelpText(sb, false, indentSpaces, prettyPrint, isOneOfMany: hasMultipleCommands);
                 sb.AppendLine();
             }
         }

@@ -31,11 +31,16 @@ public record CommandInfo : IBuildStrings
         MethodInfo = methodInfo;
     }
 
-    public void AppendHelpText(StringBuilder sb, bool verbose, int indentSpaces, bool prettyPrint)
+    public void AppendHelpText(StringBuilder sb, bool verbose, int indentSpaces, bool prettyPrint, bool isOneOfMany)
     {
-        sb.AppendRepeating(' ', indentSpaces);
+        if (prettyPrint)
+        {
+            sb.AppendRepeating(' ', indentSpaces);
+        }
 
-        sb.Append($"'{Name}': ");
+        if(isOneOfMany)
+            sb.Append($"'{Name}': ");
+        
         if (Description is not null)
         {
             sb.Append($"{Description} ");
@@ -48,7 +53,7 @@ public record CommandInfo : IBuildStrings
 
         sb.AppendLine();
         
-        var optionIndentation = indentSpaces + 4;
+        var optionIndentation = (indentSpaces + 4) * (isOneOfMany ? 1 : 0);
         foreach (var option in Options)
         {
             option.AppendHelpText(sb, true, optionIndentation, prettyPrint);
