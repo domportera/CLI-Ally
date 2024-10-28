@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Json.Serialization;
 using CLIAlly;
 
 namespace Example;
@@ -72,6 +73,9 @@ internal class CommandArgs
 [Serializable]
 internal class PersonWhoDies
 {
+    [JsonInclude]
     public string Name = "John Doe";
+    
+    [JsonInclude]
     public int Age = 42;
 }
