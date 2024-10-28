@@ -31,7 +31,7 @@ public record CommandInfo : IBuildStrings
         MethodInfo = methodInfo;
     }
 
-    public void AppendHelpText(StringBuilder sb, bool verbose, int indentSpaces)
+    public void AppendHelpText(StringBuilder sb, bool verbose, int indentSpaces, bool prettyPrint)
     {
         sb.AppendRepeating(' ', indentSpaces);
 
@@ -51,7 +51,7 @@ public record CommandInfo : IBuildStrings
         var optionIndentation = indentSpaces + 4;
         foreach (var option in Options)
         {
-            option.AppendHelpText(sb, true, optionIndentation);
+            option.AppendHelpText(sb, true, optionIndentation, prettyPrint);
         }
     }
 

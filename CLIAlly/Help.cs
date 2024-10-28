@@ -41,7 +41,7 @@ public static class Help
             foreach (var command in parser.CommandHelpRequested)
             {
                 helpWasRequested = true;
-                command.CommandInfo.AppendHelpText(sb, true, 0);
+                command.CommandInfo.AppendHelpText(sb, true, 0, true);
             }
         }
 

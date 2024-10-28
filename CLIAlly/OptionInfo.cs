@@ -52,12 +52,27 @@ public record OptionInfo
     }
 
 
-    public void AppendHelpText(StringBuilder sb, bool verbose, int indentSpaces)
+    public void AppendHelpText(StringBuilder sb, bool verbose, int indentSpaces, bool prettyPrint)
     {
         int startLinePos = sb.Length;
-        sb.AppendRepeating(' ', indentSpaces);
+        const string machineSeparator = "\0\n";
 
-        const int targetDescriptionIndentation = 40;
+        int windowWidth = 80;
+
+        if (prettyPrint)
+        {
+            try
+            {
+                windowWidth = Console.WindowWidth - 1;
+            }
+            catch (Exception)
+            {
+                prettyPrint = false;
+            }
+        }
+
+        if (prettyPrint)
+            sb.AppendRepeating(' ', indentSpaces);
 
         sb.Append("--").Append(LongName);
 
@@ -66,29 +81,11 @@ public record OptionInfo
             sb.Append(", -").Append(s);
         }
 
-        sb.Append(": ");
+        sb.Append(prettyPrint ? ": " : machineSeparator);
 
-        // variable space chars for alignment
-        var targetCharCount = startLinePos + targetDescriptionIndentation - 1; // - 1 for the space after these dashes
-        sb.AppendRepeating('-', targetCharCount - sb.Length);
-        sb.Append(' ');
-
-        int windowWidth;
-        try
-        {
-            windowWidth = Console.WindowWidth - 1;
-        }
-        catch (Exception)
-        {
-            windowWidth = int.MaxValue;
-        }
-
-        // in case the name itself takes up > targetDescriptionIndentation characters, or the description gets super squished
-        windowWidth = windowWidth < sb.Length - startLinePos + 20 ? int.MaxValue : windowWidth;
-        
         // generate type information
         var typeInformationSb = new StringBuilder();
-        typeInformationSb.Append("| ").Append(Type.Name).Append(' ');
+        typeInformationSb.AppendBetweenChevrons(Type.Name).Append(' ');
 
         if (Required)
         {
@@ -103,34 +100,81 @@ public record OptionInfo
                 _ => DefaultValue.ToString() ?? "null"
             };
 
-            typeInformationSb.AppendBetweenBrackets("Default value: '" + defaultValue + '\'');
+            typeInformationSb.AppendBetweenBrackets("Default: '" + defaultValue + '\'');
         }
-        
-        typeInformationSb.Append(" | ");
+
+        if (!prettyPrint)
+        {
+            sb.Append(typeInformationSb);
+
+            // insert separator to indicate description - empty or not 
+            sb.Append(machineSeparator);
+            if (Description != null)
+            {
+                sb.Append(Description);
+            }
+
+            // insert machine separator to indicate further information - empty or not
+            sb.Append(machineSeparator);
+            if (verbose && FurtherInformation != null)
+            {
+                sb.AppendLine(FurtherInformation);
+            }
+
+            sb.Append(machineSeparator);
+
+            return;
+        }
+
+        // variable space chars for alignment
+        const int targetDescriptionIndentation = 40;
+        var targetCharCount = startLinePos + targetDescriptionIndentation;
+        sb.AppendRepeating(HorizontalSeparatorChar, targetCharCount - sb.Length);
+
+        // in case the name itself takes up > targetDescriptionIndentation characters, or the description gets super squished
+        windowWidth = windowWidth < sb.Length - startLinePos + 20 ? int.MaxValue : windowWidth;
+
+        var descriptionStartString = prettyPrint ? string.Format(LineStartFormat, BeginDescriptionChar.ToString()) : "";
+        sb.Append(BeginDescriptionChar);
+
+        AddSeparatorRow(sb, descriptionStartString);
 
         // append type information
-        for(int i = 0; i < typeInformationSb.Length; i++)
-        {
-            Wrap(sb, ref startLinePos, windowWidth);
-            sb.Append(typeInformationSb[i]);
-        }
+        var lineSeparator = string.Format(LineStartFormat, DescriptionLineStart.ToString());
+        typeInformationSb.Append('\n');
+        AppendWrappedText(typeInformationSb.ToString(), sb, ref startLinePos, windowWidth, lineSeparator);
 
         // append description information
-        if (Description != null)
+        var wroteDescription = AppendWrappedText(Description, sb, ref startLinePos, windowWidth, lineSeparator);
+        if (verbose)
         {
-            foreach (var c in Description)
+            if (wroteDescription)
             {
-                Wrap(sb, ref startLinePos, windowWidth);
-                sb.Append(c);
+                // force new line
+                AppendWrappedText("\n", sb, ref startLinePos, windowWidth, lineSeparator);
+                AppendWrappedText(FurtherInformation, sb, ref startLinePos, windowWidth, lineSeparator);
+            }
+            else
+            {
+                wroteDescription = AppendWrappedText(FurtherInformation, sb, ref startLinePos, windowWidth,
+                    lineSeparator);
             }
         }
 
-        if (verbose && FurtherInformation != null)
+        if (wroteDescription)
         {
-            foreach (var c in FurtherInformation)
+            AddSeparatorRow(sb, lineSeparator);
+            // find previous line start and replace characters
+            for (int i = sb.Length - 1; i >= 0; i--)
             {
-                Wrap(sb, ref startLinePos, windowWidth);
-                sb.Append(c);
+                if (sb[i] == DescriptionLineStart)
+                {
+                    sb[i] = EndDescriptionChar;
+
+                    // remove the space
+                    sb[i + 1] = HorizontalSeparatorChar;
+                    break;
+                }
             }
         }
 
@@ -138,13 +182,59 @@ public record OptionInfo
 
         return;
 
-        static void Wrap(StringBuilder sb, ref int startLinePos, int maxWidth)
+        static bool AppendWrappedText(string? text, StringBuilder sb, ref int startLinePos, int maxWidth,
+            string lineSeparator)
         {
-            if (sb.Length - startLinePos <= maxWidth) return;
+            if (string.IsNullOrEmpty(text))
+                return false;
 
-            sb.AppendLine();
-            startLinePos = sb.Length;
-            sb.AppendRepeating(' ', targetDescriptionIndentation);
+            for (var index = 0; index < text.Length; index++)
+            {
+                var c = text[index];
+                var charsUntilNextWhitespace = text.IndexOf(' ', index) - index;
+                if (charsUntilNextWhitespace < 0)
+                    charsUntilNextWhitespace = 0;
+
+                var currentLineCharCount = sb.Length - startLinePos;
+
+                var charIsNewLine = c == '\n';
+                if (charIsNewLine || currentLineCharCount + charsUntilNextWhitespace > maxWidth)
+                {
+                    sb.Append('\n');
+                    startLinePos = sb.Length;
+                    sb.AppendRepeating(' ', targetDescriptionIndentation);
+                    sb.Append(lineSeparator);
+                }
+
+                if (!charIsNewLine) // we don't need to append a line break since we already did that
+                    sb.Append(c);
+            }
+
+            return true;
+        }
+
+        void AddSeparatorRow(StringBuilder stringBuilder, string lineStartString)
+        {
+            if (!prettyPrint)
+                return;
+
+            // add a row of dashes to separate from the next option
+
+            // add a newline if necessary, force-wrapping
+            var currentLineCharCount = stringBuilder.Length - startLinePos;
+            if (currentLineCharCount > targetDescriptionIndentation + lineStartString.Length)
+                AppendWrappedText("\n", stringBuilder, ref startLinePos, windowWidth, lineStartString);
+
+            // now add the row of dashes
+            var charsRemainingInLine = windowWidth - stringBuilder.Length + startLinePos;
+            stringBuilder.AppendRepeating(HorizontalSeparatorChar, charsRemainingInLine);
         }
     }
+
+    // http://shapecatcher.com/unicode/block/Box_Drawing
+    private static readonly char BeginDescriptionChar = (char)0x252C; // corner
+    private static readonly char EndDescriptionChar = (char)0x2514; // corner
+    private static readonly char HorizontalSeparatorChar = (char)0x2500; // horizontal line
+    private static readonly char DescriptionLineStart = (char)0x2502; // vertical line
+    private const string LineStartFormat = "{0} ";
 }

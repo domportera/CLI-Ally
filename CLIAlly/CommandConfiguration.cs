@@ -53,7 +53,7 @@ public record CommandConfiguration
             var indentSpaces = indent * 4;
             foreach (var command in CommandInfos)
             {
-                command.AppendHelpText(sb, false, indentSpaces);
+                command.AppendHelpText(sb, false, indentSpaces, true);
                 sb.AppendLine();
             }
         }
