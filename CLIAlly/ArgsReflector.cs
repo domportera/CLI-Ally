@@ -191,7 +191,8 @@ public class ArgsReflector
                 isLongNameCaseSensitive: isLongNameCaseSensitive,
                 defaultValue: defaultValue,
                 order: index,
-                fieldInfo: field.FieldInfo
+                fieldInfo: field.FieldInfo,
+                nullabilityInfo: nullabilityInfo
             );
         }
 

@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text;
@@ -27,10 +28,12 @@ public record OptionInfo
     public readonly bool IsLongNameCaseSensitive;
     public readonly int Order;
     public readonly FieldInfo FieldInfo;
+    public bool IsNullable => _nullabilityInfo.ReadState == NullabilityState.Nullable;
+    private readonly NullabilityInfo _nullabilityInfo;
 
     public OptionInfo(string longName, char[] shortNames, string? description, OptionValidator validator,
         bool required, RequiredAttribute? requiredAttribute, string? furtherInformation, Type type,
-        bool isLongNameCaseSensitive, object? defaultValue, int order, FieldInfo fieldInfo)
+        bool isLongNameCaseSensitive, object? defaultValue, int order, FieldInfo fieldInfo, NullabilityInfo nullabilityInfo)
     {
         LongName = longName;
         ShortNames = shortNames;
@@ -44,6 +47,7 @@ public record OptionInfo
         DefaultValue = defaultValue;
         Order = order;
         FieldInfo = fieldInfo;
+        _nullabilityInfo = nullabilityInfo;
 
         if (required && validator == null)
         {
@@ -54,9 +58,9 @@ public record OptionInfo
 
     public void AppendHelpText(StringBuilder sb, bool verbose, int indentSpaces, bool prettyPrint)
     {
-        int startLinePos = sb.Length;
         const string machineSeparator = "\0\n";
 
+        int startLinePos = sb.Length;
         int windowWidth = 80;
 
         if (prettyPrint)
@@ -85,7 +89,10 @@ public record OptionInfo
 
         // generate type information
         var typeInformationSb = new StringBuilder();
-        typeInformationSb.AppendBetweenChevrons(Type.Name).Append(' ');
+        
+        
+        string typeName = IsNullable ? Nullable.GetUnderlyingType(Type)?.Name ?? Type.Name : Type.Name;
+        typeInformationSb.AppendBetweenChevrons(typeName).Append(' ');
 
         if (Required)
         {
@@ -127,93 +134,200 @@ public record OptionInfo
         }
 
         // variable space chars for alignment
-        const int targetDescriptionIndentation = 40;
-        var targetCharCount = startLinePos + targetDescriptionIndentation;
+        var writtenSoFar = sb.Length - startLinePos;
+
+        // determine description indentation
+        int preferredDescriptionPadding = Math.Max(windowWidth / 10, 1);
+        const int minDescriptionPadding = 1;
+        const int preferredDescriptionIndentation = 48;
+        const int preferredMinLineLengthOfDescription = 20;
+        int descIndent = preferredDescriptionIndentation + preferredDescriptionPadding;
+        //int descIndent = writtenSoFar + preferredDescriptionPadding;
+
+        if (windowWidth < descIndent + preferredMinLineLengthOfDescription)
+        {
+            descIndent = writtenSoFar + minDescriptionPadding;
+        }
+
+        while (windowWidth < descIndent + preferredMinLineLengthOfDescription)
+        {
+            descIndent--;
+        }
+
+        descIndent = Math.Max(descIndent, 0);
+
+        var targetCharCount = startLinePos + descIndent;
         sb.AppendRepeating(HorizontalSeparatorChar, targetCharCount - sb.Length);
 
+
         // in case the name itself takes up > targetDescriptionIndentation characters, or the description gets super squished
-        windowWidth = windowWidth < sb.Length - startLinePos + 20 ? int.MaxValue : windowWidth;
 
         var descriptionStartString = prettyPrint ? string.Format(LineStartFormat, BeginDescriptionChar.ToString()) : "";
         sb.Append(BeginDescriptionChar);
 
-        AddSeparatorRow(sb, descriptionStartString);
+        AddSeparatorRow(sb, descriptionStartString, descIndent);
 
         // append type information
         var lineSeparator = string.Format(LineStartFormat, DescriptionLineStart.ToString());
-        typeInformationSb.Append('\n');
-        AppendWrappedText(typeInformationSb.ToString(), sb, ref startLinePos, windowWidth, lineSeparator);
+        var endLineSeparator = $"{EndDescriptionChar}{HorizontalSeparatorChar}";
+        AppendWrappedText(typeInformationSb.ToString(), sb, ref startLinePos, windowWidth, lineSeparator, descIndent);
+        NextLine(sb, lineSeparator, descIndent);
 
         // append description information
-        var wroteDescription = AppendWrappedText(Description, sb, ref startLinePos, windowWidth, lineSeparator);
-        if (verbose)
-        {
-            if (wroteDescription)
-            {
-                // force new line
-                AppendWrappedText("\n", sb, ref startLinePos, windowWidth, lineSeparator);
-                AppendWrappedText(FurtherInformation, sb, ref startLinePos, windowWidth, lineSeparator);
-            }
-            else
-            {
-                wroteDescription = AppendWrappedText(FurtherInformation, sb, ref startLinePos, windowWidth,
-                    lineSeparator);
-            }
-        }
+        var wroteDescription =
+            AppendWrappedText(Description, sb, ref startLinePos, windowWidth, lineSeparator, descIndent);
 
+        var hasFurtherInfo = !string.IsNullOrEmpty(FurtherInformation);
         if (wroteDescription)
         {
-            AddSeparatorRow(sb, lineSeparator);
-            // find previous line start and replace characters
-            for (int i = sb.Length - 1; i >= 0; i--)
-            {
-                if (sb[i] == DescriptionLineStart)
-                {
-                    sb[i] = EndDescriptionChar;
+            var separator = hasFurtherInfo ? lineSeparator : endLineSeparator;
+            NextLine(sb, separator, descIndent);
+            if (hasFurtherInfo) // spacing between description and further info
+                NextLine(sb, separator, descIndent);
+        }
 
-                    // remove the space
-                    sb[i + 1] = HorizontalSeparatorChar;
-                    break;
-                }
-            }
+        if (verbose && hasFurtherInfo)
+        {
+            // write further information like normal
+            wroteDescription |= AppendWrappedText(FurtherInformation, sb, ref startLinePos, windowWidth, lineSeparator,
+                descIndent);
+        }
+
+        // draw the bottom border
+        if (wroteDescription)
+        {
+            AddSeparatorRow(sb, endLineSeparator, descIndent);
+        }
+        else
+        {
+            // we're on the last line, which is empty and starts with `lineSeparator` 
+            // but we want `endLineSeparator` so we're gonna replace it
+            sb[^2] = EndDescriptionChar;
+            sb[^1] = HorizontalSeparatorChar;
+
+            // draw the line
+            FillHorizontalLine(sb, windowWidth, startLinePos);
         }
 
         sb.AppendLine();
 
         return;
 
-        static bool AppendWrappedText(string? text, StringBuilder sb, ref int startLinePos, int maxWidth,
-            string lineSeparator)
+        static bool AppendWrappedText(string? text, StringBuilder sb, ref int startLinePos, int maxLineLength,
+            string lineStartText, int indentationSpaces)
         {
             if (string.IsNullOrEmpty(text))
                 return false;
 
-            for (var index = 0; index < text.Length; index++)
+            int GetCurrentLineLength(in int startLinePos) => sb.Length - startLinePos;
+
+            const char newLine = '\n';
+
+            int i = 0;
+            while (i < text.Length)
             {
-                var c = text[index];
-                var charsUntilNextWhitespace = text.IndexOf(' ', index) - index;
-                if (charsUntilNextWhitespace < 0)
-                    charsUntilNextWhitespace = 0;
-
-                var currentLineCharCount = sb.Length - startLinePos;
-
-                var charIsNewLine = c == '\n';
-                if (charIsNewLine || currentLineCharCount + charsUntilNextWhitespace > maxWidth)
+                var currentLineLength = GetCurrentLineLength(startLinePos);
+                var lineRemaining = maxLineLength - currentLineLength;
+                if (lineRemaining == 0)
                 {
-                    sb.Append('\n');
-                    startLinePos = sb.Length;
-                    sb.AppendRepeating(' ', targetDescriptionIndentation);
-                    sb.Append(lineSeparator);
+                    StartNewLine(ref i, out startLinePos);
+                    continue;
+                }
+                
+                var remainingCharCount = text.Length - i;
+
+                // fill line or until end of text
+                var maxLength = Math.Min(remainingCharCount, lineRemaining);
+                var segmentEndIndex = i + maxLength - 1;
+
+                Debug.Assert(segmentEndIndex >= i);
+
+                // find an appropriate place to fill the line and do so
+                var chosenMaxIndex = segmentEndIndex;
+                bool foundWhitespace = false;
+                
+                for (int j = segmentEndIndex; j >= i; --j)
+                {
+                    if(char.IsWhiteSpace(text[j]))
+                    {
+                        foundWhitespace = true;
+                        chosenMaxIndex = j;
+                        break;
+                    }
                 }
 
-                if (!charIsNewLine) // we don't need to append a line break since we already did that
+                if (!foundWhitespace)
+                {
+                    // if no whitespace was found, then just fill the line to the end
+                    chosenMaxIndex = segmentEndIndex;
+                }
+
+                var segmentSpan = text.AsSpan(i, chosenMaxIndex - i + 1);
+
+
+                bool enteredNewline = false;
+                // fill the line
+                for (; i <= chosenMaxIndex; ++i)
+                {
+                    var c = text[i];
+                    if (c == newLine)
+                    {
+                        StartNewLine(ref i, out startLinePos);
+                        enteredNewline = true;
+                        break;
+                    }
+                    
                     sb.Append(c);
+                }
+                
+                // check if we need to start a new line
+                // if we didn't interrupt the previous loop with a newline and we had found whitespace, 
+                // then we need to start a new line
+                if (!enteredNewline && foundWhitespace && text.Length - i + GetCurrentLineLength(startLinePos) > maxLineLength)
+                {
+                    StartNewLine(ref i, out startLinePos);
+                }
             }
 
             return true;
+
+            void StartNewLine(ref int atTextIndex, out int newStartLinePos)
+            {
+                // if we are not at a newline character, then it is a forced newline
+                if (text[atTextIndex] != newLine)
+                {
+                    // skip all whitespace until the next printable character - a non-whitespace character or a newline
+                    bool IsPrintable(char c) => c == newLine || !char.IsWhiteSpace(c);
+                    while (atTextIndex < text.Length && !IsPrintable(text[atTextIndex]))
+                    {
+                        ++atTextIndex;
+                    }
+                    
+                    // the final printable char here might be a newline, so we allow the next block
+                    // to check for that even though we technically just did
+                }
+                
+                // skip the newline character as we are appending it
+                if(atTextIndex < text.Length && text[atTextIndex] == newLine)
+                {
+                    // skip the newline character as we are appending it 
+                    atTextIndex++;
+                }
+
+                sb.Append(newLine);
+                newStartLinePos = sb.Length;
+                sb.AppendRepeating(' ', indentationSpaces);
+                sb.Append(lineStartText);
+            }
         }
 
-        void AddSeparatorRow(StringBuilder stringBuilder, string lineStartString)
+
+        void NextLine(StringBuilder builder, string lineStartString, int indentationSpaces)
+        {
+            AppendWrappedText("\n", builder, ref startLinePos, windowWidth, lineStartString, indentationSpaces);
+        }
+
+        void AddSeparatorRow(StringBuilder stringBuilder, string lineStartString, int indentationSpaces)
         {
             if (!prettyPrint)
                 return;
@@ -222,14 +336,21 @@ public record OptionInfo
 
             // add a newline if necessary, force-wrapping
             var currentLineCharCount = stringBuilder.Length - startLinePos;
-            if (currentLineCharCount > targetDescriptionIndentation + lineStartString.Length)
-                AppendWrappedText("\n", stringBuilder, ref startLinePos, windowWidth, lineStartString);
+            if (currentLineCharCount > descIndent + lineStartString.Length)
+                AppendWrappedText("\n", stringBuilder, ref startLinePos, windowWidth, lineStartString,
+                    indentationSpaces);
 
             // now add the row of dashes
-            var charsRemainingInLine = windowWidth - stringBuilder.Length + startLinePos;
+            FillHorizontalLine(stringBuilder, windowWidth, startLinePos);
+        }
+
+        static void FillHorizontalLine(StringBuilder stringBuilder, int windowWidth, int startLinePos)
+        {
+            var charsRemainingInLine = windowWidth - (stringBuilder.Length - startLinePos);
             stringBuilder.AppendRepeating(HorizontalSeparatorChar, charsRemainingInLine);
         }
     }
+
 
     // http://shapecatcher.com/unicode/block/Box_Drawing
     private static readonly char BeginDescriptionChar = (char)0x252C; // corner

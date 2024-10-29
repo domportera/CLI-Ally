@@ -61,11 +61,24 @@ internal class CommandArgs
     public bool Doom; // bools are
 
     [Arg(3), Path] [Description("Optional path to describe death in further detail")]
+    [DetailedDescription("Try using the included file 'details.txt' to see how it works!")]
     public string? DeathTextPath;
 
     [Arg(4), JsonPath]
     [Description("Path to a JSON file identifying your victim. Includes only \"Name\" (strings) and \"Age\" (integer) fields.")]
+    [DetailedDescription("An example JSON file is included, called 'Person.json'.\n" + 
+                         """
+                         The full format for this example is:
+                         {
+                            "Name": "Some name",
+                            "Age": 66
+                         }
+                         """)]
     public PersonWhoDies? PersonWhoDies;
+
+    // Value types are always required unless a default value is specified, or they are marked with nullable.
+    // booleans are always optional unless required, as their exclusion suggests that their value is false.
+    [Arg(5)] public int? ExampleUndocumentedArgument;
 }
 
 [Serializable]
