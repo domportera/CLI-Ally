@@ -13,9 +13,11 @@
 
     <ItemGroup>
         <ProjectReference Include="..\CLIAlly\CLIAlly.csproj"/>
-       
+    </ItemGroup>
+    
+    <ItemGroup>
         <!-- Use the json source generator to enable AOT json support-->
-        <ProjectReference Include="..\NetJsonAOT\NetJsonAOT.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
+        <PackageReference Include="domportera.NetJsonAOT" OutputItemType="Analyzer" ReferenceOutputAssembly="false" Version="0.1.3-alpha" />
     </ItemGroup>
 
     <!-- include content files in the build output -->
