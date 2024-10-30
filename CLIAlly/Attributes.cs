@@ -9,12 +9,12 @@ public class CommandAttribute : Attribute, INameAttribute
     public bool IsDefaultCommand { get; init; } = false;
 }
 
-[AttributeUsage(AttributeTargets.Field)]
+[AttributeUsage(AttributeTargets.Field)] // todo: not actually implemented?
 public class ExplicitBoolAttribute : Attribute; // requires that a boolean argument be explicitly set to "true" or "false"
 
 
 [AttributeUsage(AttributeTargets.Field | AttributeTargets.Method)]
-public class DetailedDescriptionAttribute(string description) : Attribute
+public class VerboseDescriptionAttribute(string description) : Attribute
 {
     public string Description { get; } = description;
 }
@@ -23,7 +23,7 @@ public class DetailedDescriptionAttribute(string description) : Attribute
 public class PathAttribute : Attribute;
 
 [AttributeUsage(AttributeTargets.Field)]
-public class JsonPathAttribute : Attribute;
+public class JsonTextAttribute : Attribute;
 
 
 [AttributeUsage(AttributeTargets.Field | AttributeTargets.Method, AllowMultiple = false)]

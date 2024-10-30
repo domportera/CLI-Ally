@@ -299,10 +299,10 @@ public class ArgsReflector
         public FieldInfo FieldInfo { get; }
         public Type FieldType => FieldInfo.FieldType;
         public readonly DescriptionAttribute? Description;
-        public readonly DetailedDescriptionAttribute? DetailedDescription;
+        public readonly VerboseDescriptionAttribute? DetailedDescription;
         public readonly DefaultValueAttribute? DefaultValue;
         public readonly PathAttribute? Path;
-        public readonly JsonPathAttribute? JsonPath;
+        public readonly JsonTextAttribute? JsonPath;
         public readonly ArgAttribute? ArgumentDef;
         public readonly RequiredAttribute? Required;
         public readonly ExplicitBoolAttribute? ExplicitBool;
@@ -318,13 +318,13 @@ public class ArgsReflector
                     case DescriptionAttribute d:
                         Description = d;
                         continue;
-                    case DetailedDescriptionAttribute dd:
+                    case VerboseDescriptionAttribute dd:
                         DetailedDescription = dd;
                         continue;
                     case PathAttribute p:
                         Path = p;
                         continue;
-                    case JsonPathAttribute jp:
+                    case JsonTextAttribute jp:
                         JsonPath = jp;
                         continue;
                     case ArgAttribute n:
@@ -355,7 +355,7 @@ public class ArgsReflector
             {
                 if (fieldType.IsValueType)
                 {
-                    throw new ArgumentException($"{nameof(JsonPathAttribute)} can only be applied to reference types");
+                    throw new ArgumentException($"{nameof(JsonTextAttribute)} can only be applied to reference types");
                 }
             }
 
@@ -497,7 +497,7 @@ public class MethodAttributes
 {
     public readonly CommandAttribute? Command;
     public readonly DescriptionAttribute? Description;
-    public readonly DetailedDescriptionAttribute? DetailedDescription;
+    public readonly VerboseDescriptionAttribute? DetailedDescription;
 
     public MethodAttributes(MethodInfo method, bool inheritAttributes)
     {
@@ -512,7 +512,7 @@ public class MethodAttributes
                 case DescriptionAttribute d:
                     Description = d;
                     continue;
-                case DetailedDescriptionAttribute dd:
+                case VerboseDescriptionAttribute dd:
                     DetailedDescription = dd;
                     continue;
             }
