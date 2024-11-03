@@ -14,7 +14,7 @@ public delegate bool OptionValidator(string? value, Type type, out object? resul
 /// Can belong to either a subcommand or the root application itself
 /// This definition does not contain the actual value of the option - it only describes it and validates potential values
 /// </summary>
-public record OptionInfo
+public class OptionInfo
 {
     public readonly string LongName;
     public readonly char[] ShortNames;
