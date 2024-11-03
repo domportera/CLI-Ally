@@ -10,7 +10,7 @@
     <PropertyGroup>
         <!-- Package information -->
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-        <Version>0.1.0-alpha</Version>
+        <Version>0.1.1-alpha</Version>
         <Title>CLI-Ally</Title>
         <Authors>Dom Portera</Authors>
         <Description>An easy-to-use, AOT-friendly library for creating flexible CLI applications for use in the 
@@ -23,7 +23,7 @@
         <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
         <PackageId>domportera.CLIAlly</PackageId>
         <PackageReadmeFile>README.md</PackageReadmeFile>
-        <IncludeBuildOutput>false</IncludeBuildOutput>
+        <IncludeBuildOutput>true</IncludeBuildOutput>
     </PropertyGroup>
 
     <ItemGroup>
