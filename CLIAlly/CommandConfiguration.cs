@@ -15,9 +15,9 @@ public record CommandConfiguration
     /// <param name="commandInfos">A list of <see cref="CommandInfo"/>s that the app can perform - like "push" and "pull" are for git.</param>
     public CommandConfiguration(IReadOnlyList<CommandInfo> commandInfos)
     {
-        if(commandInfos.Count == 0)
+        if (commandInfos.Count == 0)
             throw new ArgumentException("No commands defined");
-        
+
         CommandInfos = commandInfos;
         DefaultCommand = commandInfos.SingleOrDefault(x => x.IsDefaultCommand);
     }
@@ -30,12 +30,25 @@ public record CommandConfiguration
 
     public bool TryGetCommand(string commandName, [NotNullWhen(true)] out CommandInfo? foundCommand)
     {
+        var allLowerCase = commandName.ToLowerInvariant();
         foreach (var cmd in CommandInfos)
         {
-            if (cmd.Name == commandName)
+            if (cmd.IsCaseSensitive)
             {
-                foundCommand = cmd;
-                return true;
+                if (cmd.Name == commandName)
+                {
+                    foundCommand = cmd;
+                    return true;
+                    
+                }
+            }
+            else 
+            {
+                if (cmd.Name.ToLowerInvariant() == allLowerCase)
+                {
+                    foundCommand = cmd;
+                    return true;
+                }
             }
         }
 

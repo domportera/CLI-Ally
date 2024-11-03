@@ -6,18 +6,11 @@ using System.Text.Json;
 
 namespace CLIAlly;
 
-public class DynamicMethodInfo
+public class DynamicMethodInfo(MethodInfo method, Type? parameters, in MethodAttributes attributes)
 {
-    public readonly MethodInfo Method;
-    public readonly Type? Parameters;
-    public readonly MethodAttributes Attributes;
-
-    public DynamicMethodInfo(MethodInfo method, Type? parameters, in MethodAttributes attributes)
-    {
-        Method = method;
-        Parameters = parameters;
-        Attributes = attributes;
-    }
+    public readonly MethodInfo Method = method;
+    public readonly Type? Parameters = parameters;
+    public readonly MethodAttributes Attributes = attributes;
 }
 
 public class ArgsReflector
