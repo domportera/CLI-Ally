@@ -86,6 +86,7 @@ public class OptionInfo
         }
 
         sb.Append(prettyPrint ? ": " : machineSeparator);
+        var nameStringCount = sb.Length - startLinePos;
 
         // generate type information
         var typeInformationSb = new StringBuilder();
@@ -139,7 +140,7 @@ public class OptionInfo
         // determine description indentation
         int preferredDescriptionPadding = Math.Max(windowWidth / 10, 1);
         const int minDescriptionPadding = 1;
-        const int preferredDescriptionIndentation = 48;
+        const int preferredDescriptionIndentation = 24;
         const int preferredMinLineLengthOfDescription = 20;
         int descIndent = preferredDescriptionIndentation + preferredDescriptionPadding;
         //int descIndent = writtenSoFar + preferredDescriptionPadding;
@@ -162,8 +163,10 @@ public class OptionInfo
 
         // in case the name itself takes up > targetDescriptionIndentation characters, or the description gets super squished
 
-        var descriptionStartString = prettyPrint ? string.Format(LineStartFormat, BeginDescriptionChar.ToString()) : "";
-        sb.Append(BeginDescriptionChar);
+        var descriptionStartString = BeginDescriptionChar.ToString();
+        
+        if(descIndent > nameStringCount)
+            sb.Append(BeginDescriptionChar);
 
         AddSeparatorRow(sb, descriptionStartString, descIndent);
 
@@ -228,7 +231,7 @@ public class OptionInfo
             {
                 var currentLineLength = GetCurrentLineLength(startLinePos);
                 var lineRemaining = maxLineLength - currentLineLength;
-                if (lineRemaining == 0)
+                if (lineRemaining <= 0)
                 {
                     StartNewLine(ref i, out startLinePos);
                     continue;
@@ -261,9 +264,6 @@ public class OptionInfo
                     // if no whitespace was found, then just fill the line to the end
                     chosenMaxIndex = segmentEndIndex;
                 }
-
-                var segmentSpan = text.AsSpan(i, chosenMaxIndex - i + 1);
-
 
                 bool enteredNewline = false;
                 // fill the line
