@@ -17,7 +17,7 @@ public record CommandInfo : IBuildStrings
     public readonly string? FurtherInformation;
     public readonly IReadOnlyList<OptionInfo> Options;
     public bool AcceptsOption => Options.Any();
-    public readonly bool IsDefaultCommand;
+    internal bool IsDefaultCommand;
     public readonly DynamicMethodInfo MethodInfo;
 
     public CommandInfo(string name, string? description, string? furtherInformation, IReadOnlyList<OptionInfo>? options, bool isDefaultCommand, bool isCaseSensitive, DynamicMethodInfo methodInfo)

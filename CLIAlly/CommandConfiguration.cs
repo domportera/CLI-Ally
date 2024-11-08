@@ -18,11 +18,13 @@ public record CommandConfiguration
         if (commandInfos.Count == 0)
             throw new ArgumentException("No commands defined");
         
-        if(commandInfos.Count(x => x.IsDefaultCommand) > 1)
+        if(commandInfos.Count == 1)
+            commandInfos[0].IsDefaultCommand = true;
+        else if(commandInfos.Count(x => x.IsDefaultCommand) > 1)
             throw new ArgumentException("Only one default command can be defined");
 
         CommandInfos = commandInfos;
-        DefaultCommand = commandInfos.SingleOrDefault(x => x.IsDefaultCommand);
+        DefaultCommand = commandInfos.First(x => x.IsDefaultCommand);
     }
 
     public bool TryGetDefaultCommand([NotNullWhen(true)] out CommandInfo? o)
