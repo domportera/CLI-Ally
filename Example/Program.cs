@@ -12,7 +12,7 @@ internal static class Program
         ArgsReflector.SetAotJsonTypes(RuntimeJson.JsonSerializerOptions);
         
         // parse command line arguments
-        var parser = CommandLineParser.FromArgs(args, typeof(MyClassWithCommands));
+        var parser = CommandLineParser.FromArgs(args, typeof(MyClassWithCommands), typeof(EchoCommand));
         
         // Optional: see what was input by the user, and the resulting commands or errors that were parsed
         var info = parser.GetParseInfo();

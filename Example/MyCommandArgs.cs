@@ -9,7 +9,7 @@ namespace Example;
 [Serializable] // allows the entire arguments object to be input as json (via file or inline) instead of by individual arguments
 internal class MyCommandArgs // note that this can be any type at all - no special attribute required
 {
-    [Arg(0)] [Description("The way your victim dies")]
+    [Arg(0)] [Description("The way your victim dies")] [Required]
     public required string ModeOfDeath;
 
     [Arg(1), Range(1, 10), DefaultValue(4)] [Description("The number of times your victim dies")]
@@ -38,4 +38,11 @@ internal class MyCommandArgs // note that this can be any type at all - no speci
     // Value types are always required unless a default value is specified, or they are marked with nullable.
     // booleans are always optional unless required, as their exclusion suggests that their value is false.
     [Arg(5)] public int? ExampleUndocumentedArgument;
+}
+
+[Serializable]
+internal class PersonWhoDies
+{
+    public string Name = "An unnamed stranger";
+    public int Age = 42;
 }
