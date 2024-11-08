@@ -17,6 +17,6 @@ public class EchoCommand
 
 public class EchoArgs
 {
-    [Arg(0)] [Description("Says something")] [Required]
+    [Arg(0)] [Description("Says something")]
     public string Text;
 }
