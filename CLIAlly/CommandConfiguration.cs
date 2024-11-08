@@ -17,6 +17,9 @@ public record CommandConfiguration
     {
         if (commandInfos.Count == 0)
             throw new ArgumentException("No commands defined");
+        
+        if(commandInfos.Count(x => x.IsDefaultCommand) > 1)
+            throw new ArgumentException("Only one default command can be defined");
 
         CommandInfos = commandInfos;
         DefaultCommand = commandInfos.SingleOrDefault(x => x.IsDefaultCommand);

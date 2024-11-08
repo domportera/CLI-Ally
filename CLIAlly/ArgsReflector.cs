@@ -40,9 +40,13 @@ public class ArgsReflector
 
         var methods = typeContainingCommandMethods.GetMethods(methodBindingFlags);
 
+        if (methods.Length == 0)
+        {
+            throw new Exception($"No commands found in type {typeContainingCommandMethods.FullName}. Make sure your command methods are static and declared in {typeContainingCommandMethods.Name}");
+        }
+
         List<CommandInfo> commands = [];
         List<string> takenNames = new();
-        MethodInfo? defaultCommand = null;
 
         foreach (var method in methods)
         {
@@ -69,20 +73,13 @@ public class ArgsReflector
             }
 
             var longName = GetLongName(commandAttribute, method, takenNames, out var isCaseSensitive);
-            var isDefaultCommand = commandAttribute.IsDefaultCommand || methods.Length == 1;
-            if (isDefaultCommand)
-            {
-                if (defaultCommand != null)
-                    throw new ArgumentException("Only one default command can be specified");
-                defaultCommand = method;
-            }
 
             var command = new CommandInfo(
                 name: longName,
                 description: attributes.Description?.Description,
                 furtherInformation: attributes.DetailedDescription?.Description,
                 options,
-                isDefaultCommand: isDefaultCommand,
+                isDefaultCommand: commandAttribute.IsDefaultCommand,
                 isCaseSensitive: isCaseSensitive,
                 methodInfo: new DynamicMethodInfo(method, argsType, attributes));
 
