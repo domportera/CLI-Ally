@@ -536,7 +536,7 @@ public sealed class CommandLineParser : ICliParser
     {
         if (InputCommands.Count == 0)
         {
-            ExitCodeInfo.FromInvalidArgs("No commands provided");
+            return ExitCodeInfo.FromInvalidArgs("No commands provided");
         }
 
         if (Errors.Count > 0)
