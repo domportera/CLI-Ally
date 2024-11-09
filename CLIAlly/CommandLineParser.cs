@@ -109,6 +109,7 @@ public sealed class CommandLineParser : ICliParser
         bool canBeOrderedArguments = true;
         int orderedArgumentIndex = 0;
         bool canUseDefaultCommand = true;
+        var allCommandsLowercase = commands.CommandInfos.Select(x => x.Name.ToLower()).ToArray();
 
         // parsing time
 
@@ -129,7 +130,24 @@ public sealed class CommandLineParser : ICliParser
 
             var couldBeLongOption = arg.StartsWith("--");
             var couldBeShortOption = !couldBeLongOption && arg.StartsWith('-');
+            var argAsLowercase = arg.ToLower();
 
+            var couldBeCommandName = false;
+            foreach (var cmdName in allCommandsLowercase)
+            {
+                couldBeCommandName |= argAsLowercase == cmdName;
+            }
+
+            var isNotOptionOrCommandName = !couldBeLongOption && !couldBeShortOption && !couldBeCommandName;
+            if (isNotOptionOrCommandName)
+            {
+                // grab default command
+                if (canUseDefaultCommand && commands.DefaultCommand != null)
+                {
+                    AddCommand(commands.DefaultCommand);
+                }
+            }
+            
             if ((couldBeLongOption || couldBeShortOption) && currentCommand == null)
             {
                 if (TryHandleReservedOptions(arg, null, couldBeLongOption))
