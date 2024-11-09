@@ -10,7 +10,7 @@
     <PropertyGroup>
         <!-- Package information -->
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-        <Version>0.1.5-alpha</Version>
+        <Version>0.1.6-alpha</Version>
         <Title>CLI-Ally</Title>
         <Authors>Dom Portera</Authors>
         <Description>An easy-to-use, AOT-friendly library for creating flexible CLI applications for use in the 
